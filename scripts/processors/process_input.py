@@ -14,5 +14,6 @@ def leer_carpeta():
             print(f"Procesando len({len(excel_files)}): {file.name}")
             df = pd.read_excel(file)
             #dataframes.append(df)
+    print(df.head(5))        
     
     return df
