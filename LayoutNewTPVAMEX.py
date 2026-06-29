@@ -43,10 +43,10 @@ data_dir = os.path.join(
 # ------------------ CONEXIÓN A MARIA DB ------------------
 # Ajusta estas credenciales según tu entorno
 user = "root"  # usuario DB
-password = quote_plus("1234")  # contraseña (quote_plus para caracteres especiales)
-host = "localhost"  # host o IP del servidor
-db = "PRUEBAS_TESORERIA"  # base de datos destino
-target_table = "CXC_Enerkom"  # tabla destino para insertar
+password = quote_plus("")  # contraseña (quote_plus para caracteres especiales)
+host = ""  # host o IP del servidor
+db = ""  # base de datos destino
+target_table = ""  # tabla destino para insertar
 
 # Engine SQLAlchemy (requiere pymysql instalado)
 # maria_engine = create_engine(
