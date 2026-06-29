@@ -4,7 +4,7 @@ def clean_enerkom_data():
     """Realiza la limpieza de los datos de Enerkom."""
     df1,df2 = leer_carpeta()
     df = df1.copy()
-    dfidgm = df2.copy()
+    #dfidgm = df2.copy()
     col = df["Columna2"]
     # Aquí puedes agregar las operaciones de limpieza específicas que necesites
     #extrae el contenido dentro parentesis
@@ -23,10 +23,25 @@ def clean_enerkom_data():
     df['Fecha'] = pd.to_datetime(df["Fecha"], format='%d/%m/%Y %I:%M:%S %p', errors='coerce').dt.strftime('%Y-%m-%d %H:%M:%S')
     #df['sucursal_numero'] = pd.to_numeric(df['sucursal_codigo'], errors='coerce').astype('Int64')
     df = df[["Sucursal","NoEstacion"] + [c for c in df.columns if c not in ("Sucursal","NoEstacion", "Monto", "Precio Unit.","Litros","Subtotal","IVA")]+["Precio Unit.","Litros","Subtotal","IVA","Monto"]]
+    df = df.rename(
+        columns={
+            "Fecha": "FECHA",
+            "#Trans": "TRANSACCION",
+            "# Tarjeta": "TARJETA",
+            "Columna3": "TIPO",
+            "Producto": "PRODUCTO",
+            "Precio Unit.": "PRECIO_UNITARIO",
+            "Litros": "LITROS",
+            "Subtotal": "SUBTOTAL",
+            "Monto": "TOTAL",
+           # "Id_referencia": "Id_Referencia",
+
+        }
+    )
     df = df.drop(columns=["Columna1","Columna2", "Comision", "IVA Comision", "Total Comision", "Columna6", "Producto         Bomba", "Columna4", "Columna4","Columna5"], errors="ignore")
     print(f'cantidad de datos de dataframe: {df["Sucursal"].count()}')
-    df3 = df.merge(dfidgm, left_on="Sucursal", right_on="Referencia", how="inner")
-    df3 = df3.drop(columns=["IDGM","IdFormaPago","IdSubFormaPago","Referencia","Estatus","CrtdDateTime"])
-    print(f'cantidad de datos de dataframe que Tienen IDReferencia: {df3["Sucursal"].count()}')
-    return df3                                              
+    #df3 = df.merge(dfidgm, left_on="Sucursal", right_on="Referencia", how="inner")
+    #df3 = df3.drop(columns=["IDGM","IdFormaPago","IdSubFormaPago","Referencia","Estatus","CrtdDateTime"])
+    #print(f'cantidad de datos de dataframe que Tienen IDReferencia: {df3["Sucursal"].count()}')
+    return df                                              
     
