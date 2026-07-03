@@ -60,52 +60,45 @@ maria_engine = create_engine(
 # ------------------ REGLAS DEL LAYOUT / VALIDACIONES ------------------
 # Columnas que deben existir en el CSV y no pueden quedar vacías (filas sin estos campos se marcan inválidas)
 not_null_cols = [
-    "Sucursal",
+    "FechaFact",
+    "TotalFact",
+    "FechaTransaccion",
     "NoEstacion",
-    "TARJETA",
-    "FECHA",
-    "TIPO",
-    "TRANSACCION",
-    "PRODUCTO",
-    "PRECIO_UNITARIO",
-    "LITROS",
-    "TOTAL",
-   # "Id_Referencia",
+    "Importe",
+    # "Id_Referencia",
 ]
 
 # Columnas de fecha opcionales (pueden faltar o ser NaT sin invalidar la fila)
 nullable_date_cols = [""]
 
 # Columnas de fecha que deben parsearse correctamente; si fallan, el script aborta
-date_strict_cols = ["FECHA"]
+date_strict_cols = ["FechaFact", "FechaTransaccion"]
 
 # Columnas de fecha permisivas (si fallan, se pueden aplicar fallbacks configurables)
 date_permissive_cols = []  # ej: ["OtraFechaPermisiva"]
 
 # Columnas decimales a normalizar (asegúrate de que los nombres coincidan exactamente con el CSV)
-decimal_cols = [
-    "PRECIO_UNITARIOPRECIO_UNITARIO",
-    "LITROS",
-    "SUBTOTAL",
-    "TOTAL",
-    "IVA",
-
-]
+decimal_cols = ["PrecioUnitario", "CantidadLitro", "Importe"]
 
 # Columnas a excluir al comparar con DDL (metadatos, audit columns, etc.)
-exclude_cols = {"Id", "creado_en","actualizado_en"}
+exclude_cols = {
+    "Id",
+    "CrtdDateTime",
+}
 
 # Validaciones post-insert: {columna: "sum" | "count" | ...}
-validations = {"TOTAL": "sum"}
+validations = {"Importe": "sum"}
 
 # ------------------ MAPEOS GENÉRICOS ------------------
 mapping_configs = [
     {
-        "columna_csv": "Sucursal",
-        "tabla_catalogo": "Tesoreria_referencia",
-        "columna_relacion_catalogo": "Referencia", #conlumna con el que hace el merge 
+        "columna_csv": "NoEstacion",
+        "tabla_catalogo": "Tesoreria_Referencia",
+        "columna_relacion_catalogo": "Referencia",  # conlumna con el que hace el merge
         "columna_id_catalogo": "Id",
-        "alias_destino": "Id_Referencia",
+        "alias_destino": "IdReferencia",
+        "forma_pago": "IdFormaPago",
+        "subforma_pago": "IdSubFormaPago",
         "manual_map": {},  # ejemplo: {"BK ADO Coatzacoalcos": "BK ADO Coatzacoalcos"}
         "enabled": True,  # True o False para activar/desactivar este mapeo
     },
@@ -367,6 +360,9 @@ else:
         columna_rel_catalogo = cfg["columna_relacion_catalogo"]
         columna_id_catalogo = cfg["columna_id_catalogo"]
         alias_destino = cfg["alias_destino"]
+        forma_pago = cfg["forma_pago"]
+        subforma_pago = cfg["subforma_pago"]
+
         manual_map_local = cfg.get("manual_map", {})
 
         if verbose:
@@ -378,7 +374,7 @@ else:
         try:
             with maria_engine.connect() as conn:
                 catalog_df = pd.read_sql(
-                    f"SELECT {columna_id_catalogo} AS {alias_destino}, {columna_rel_catalogo} FROM {tabla_catalogo}",
+                    f"SELECT {columna_id_catalogo} AS {alias_destino}, {columna_rel_catalogo} FROM {tabla_catalogo} WHERE {forma_pago} = 5 AND {subforma_pago} = 24",
                     conn,
                 )
         except Exception as e:
@@ -664,7 +660,6 @@ maria_cols_filtered = [c for c in maria_cols if c not in exclude_cols]
 
 # Columnas detectadas en CSV (df_validos)
 csv_cols = [c for c in df_validos.columns if c not in exclude_cols]
-
 # Comparación
 common = [c for c in csv_cols if c in maria_cols_filtered]
 extras_csv = [c for c in csv_cols if c not in maria_cols_filtered]
@@ -698,6 +693,11 @@ if not cols_to_insert:
     print("❌ No hay columnas coincidentes para insertar.")
     sys.exit(1)
 
+
+# query = f"SELECT {cols_str} FROM {target_table}"
+
+# 5. Leer datos ya normalizados en pandas
+# df_insert = pd.read_sql(query, con=maria_engine)
 # ============ AQUÍ SE CREA df_insert ============
 df_insert = df_validos[cols_to_insert].copy()
 
@@ -714,7 +714,12 @@ insert_success = False
 
 # ---------- 1. Definir columnas que identifican duplicados ----------
 # Ajusta estas columnas según tu lógica de negocio
-duplicate_check_cols = ['Sucursal', 'Fecha','TRANSACCION','PRODUCTO']
+duplicate_check_cols = [
+    "FolioOperacion",
+    "FolioFact",
+    "FechaFact",
+    "FechaTransaccion",
+]
 # Si quieres usar todas las columnas excepto id/auditoría:
 # duplicate_check_cols = [c for c in df_insert.columns if c not in ['id', 'creado_en', 'actualizado_en']]
 # Si quieres incluir IdAfiliacion también:
@@ -724,6 +729,7 @@ duplicate_check_cols = ['Sucursal', 'Fecha','TRANSACCION','PRODUCTO']
 df_insert_original = df_insert.copy()  # <--- AHORA df_insert YA EXISTE
 total_original = len(df_insert_original)
 
+
 # ---------- 3. Función para detectar duplicados ----------
 def detect_duplicates(df, engine, table, key_columns):
     """
@@ -732,27 +738,27 @@ def detect_duplicates(df, engine, table, key_columns):
     """
     if not key_columns or len(df) == 0:
         return pd.DataFrame(), df
-    
+
     # Verificar que las columnas existen en el DataFrame
     existing_cols = [col for col in key_columns if col in df.columns]
     if not existing_cols:
         print("⚠️ Ninguna de las columnas de duplicado existe en el DataFrame.")
         return pd.DataFrame(), df
-    
+
     with engine.connect() as conn:
         # Crear set de claves existentes
         existing_keys = set()
-        
+
         # Para eficiencia, consultar en lotes
         batch_size = 1000
         total_rows = len(df)
-        
+
         print(f"🔍 Verificando duplicados en {total_rows} filas...")
-        
+
         for start in range(0, total_rows, batch_size):
             end = min(start + batch_size, total_rows)
             batch_df = df.iloc[start:end]
-            
+
             for _, row in batch_df.iterrows():
                 # Construir condición WHERE para esta fila
                 conditions = []
@@ -764,33 +770,40 @@ def detect_duplicates(df, engine, table, key_columns):
                     else:
                         conditions.append(f"{col} = :{col}")
                         params[col] = val
-                
-                where_clause = ' AND '.join(conditions)
+
+                where_clause = " AND ".join(conditions)
                 query = f"SELECT 1 FROM {table} WHERE {where_clause} LIMIT 1"
-                
+
                 try:
                     result = conn.execute(text(query), params).fetchone()
                     if result:
-                        key = tuple(row[col] if not pd.isna(row[col]) else None for col in existing_cols)
+                        key = tuple(
+                            row[col] if not pd.isna(row[col]) else None
+                            for col in existing_cols
+                        )
                         existing_keys.add(key)
                 except Exception as e:
                     print(f"⚠️ Error consultando duplicado: {e}")
                     continue
-            
+
             # Mostrar progreso
             if verbose and (start + batch_size) % (batch_size * 10) == 0:
                 print(f"   Procesadas {min(end, total_rows)}/{total_rows} filas...")
-    
+
     # Identificar duplicados en df
     duplicate_mask = df.apply(
-        lambda row: tuple(row[col] if not pd.isna(row[col]) else None for col in existing_cols) in existing_keys,
-        axis=1
+        lambda row: tuple(
+            row[col] if not pd.isna(row[col]) else None for col in existing_cols
+        )
+        in existing_keys,
+        axis=1,
     )
-    
+
     df_duplicates = df[duplicate_mask].copy()
     df_new = df[~duplicate_mask].copy()
-    
+
     return df_duplicates, df_new
+
 
 # Capturar MAX(Id) previo (tu código existente)
 prev_max_id = None
@@ -809,10 +822,7 @@ print(f"📊 Filas totales a evaluar: {len(df_insert)}")
 print(f"🔑 Columnas para detectar duplicados: {duplicate_check_cols}")
 
 df_duplicates, df_insert_new = detect_duplicates(
-    df_insert, 
-    maria_engine, 
-    target_table, 
-    duplicate_check_cols
+    df_insert, maria_engine, target_table, duplicate_check_cols
 )
 
 duplicates_count = len(df_duplicates)
@@ -827,7 +837,7 @@ if duplicates_count > 0:
     ts = datetime.now().strftime("%Y%m%dT%H%M%S")
     dup_file = os.path.join(data_dir, f"duplicados_encontrados_{ts}.csv")
     try:
-        df_duplicates.to_csv(dup_file, index=False, encoding='utf-8-sig')
+        df_duplicates.to_csv(dup_file, index=False, encoding="utf-8-sig")
         print(f"📁 Lista de duplicados guardada en: {dup_file}")
     except Exception as e:
         print(f"⚠️ No se pudo guardar archivo de duplicados: {e}")
@@ -837,7 +847,9 @@ df_insert = df_insert_new
 
 if len(df_insert) == 0:
     print("✅ No hay datos nuevos para insertar. Todos los registros ya existen.")
-    print(f"ℹ️ {total_original} filas procesadas, {duplicates_count} duplicados omitidos.")
+    print(
+        f"ℹ️ {total_original} filas procesadas, {duplicates_count} duplicados omitidos."
+    )
     sys.exit(0)
 
 # ---------- 7. Guardar snapshot pre-insert (solo datos nuevos) ----------
@@ -856,7 +868,9 @@ if verbose:
     print(f"   Filas duplicadas omitidas: {duplicates_count}")
     print(f"   Columnas a insertar: {list(df_insert.columns)}")
 
-confirm = input("\n⚠️ Escribe 'Si' para confirmar la importación a MariaDB (enter = No): ")
+confirm = input(
+    "\n⚠️ Escribe 'Si' para confirmar la importación a MariaDB (enter = No): "
+)
 if confirm.strip().lower() != "si":
     print("Importación cancelada por el usuario.")
     try:
