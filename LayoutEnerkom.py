@@ -78,7 +78,18 @@ date_strict_cols = ["FechaFact", "FechaTransaccion"]
 date_permissive_cols = []  # ej: ["OtraFechaPermisiva"]
 
 # Columnas decimales a normalizar (asegúrate de que los nombres coincidan exactamente con el CSV)
+<<<<<<< HEAD:LayoutEnerkom.py
 decimal_cols = ["PrecioUnitario", "CantidadLitro", "Importe"]
+=======
+decimal_cols = [
+    "PRECIO_UNITARIO",
+    "LITROS",
+    "SUBTOTAL",
+    "TOTAL",
+    "IVA",
+
+]
+>>>>>>> b5acbe6 (refactorisar y etl):LayoutNewTPVAMEX.py
 
 # Columnas a excluir al comparar con DDL (metadatos, audit columns, etc.)
 exclude_cols = {
@@ -96,7 +107,11 @@ mapping_configs = [
         "tabla_catalogo": "Tesoreria_Referencia",
         "columna_relacion_catalogo": "Referencia",  # conlumna con el que hace el merge
         "columna_id_catalogo": "Id",
+<<<<<<< HEAD:LayoutEnerkom.py
         "alias_destino": "IdReferencia",
+=======
+        "alias_destino": "Id_Referencia",
+>>>>>>> b5acbe6 (refactorisar y etl):LayoutNewTPVAMEX.py
         "forma_pago": "IdFormaPago",
         "subforma_pago": "IdSubFormaPago",
         "manual_map": {},  # ejemplo: {"BK ADO Coatzacoalcos": "BK ADO Coatzacoalcos"}
@@ -374,7 +389,11 @@ else:
         try:
             with maria_engine.connect() as conn:
                 catalog_df = pd.read_sql(
+<<<<<<< HEAD:LayoutEnerkom.py
                     f"SELECT {columna_id_catalogo} AS {alias_destino}, {columna_rel_catalogo} FROM {tabla_catalogo} WHERE {forma_pago} = 5 AND {subforma_pago} = 24",
+=======
+                    f"SELECT {columna_id_catalogo} AS {alias_destino}, {columna_rel_catalogo} FROM {tabla_catalogo} WHERE {forma_pago} = 5 AND {subforma_pago} = 6",
+>>>>>>> b5acbe6 (refactorisar y etl):LayoutNewTPVAMEX.py
                     conn,
                 )
         except Exception as e:
