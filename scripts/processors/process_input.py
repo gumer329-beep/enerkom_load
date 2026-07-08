@@ -1,4 +1,5 @@
 from pathlib import Path
+from scripts.config import INPUT_PATH_AMEX
 import pandas as pd
 
 
@@ -29,7 +30,7 @@ def leer_csv_amex(INPUT_PATH):
         df = []
         for file in csv_files:
             print(f"Procesando len({len(csv_files)}): {file.name}")
-            if(INPUT_PATH=="data/amex"):
+            if(INPUT_PATH==INPUT_PATH_AMEX):
                 df.append(pd.read_csv(file, skiprows=9, dtype=str, keep_default_na=False))
             else:
                 df.append(pd.read_csv(file))
