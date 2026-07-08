@@ -29,8 +29,10 @@ def leer_csv_amex(INPUT_PATH):
         df = []
         for file in csv_files:
             print(f"Procesando len({len(csv_files)}): {file.name}")
-            df.append(
-                pd.read_csv(file, skiprows=9, dtype=str, keep_default_na=False)
-            )
+            if(INPUT_PATH=="data/amex"):
+                df.append(pd.read_csv(file, skiprows=9, dtype=str, keep_default_na=False))
+            else:
+                df.append(pd.read_csv(file))
+
     #print(df.head(5))  
     return pd.concat(df)
