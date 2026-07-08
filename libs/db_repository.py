@@ -1,5 +1,5 @@
 # scripts/repositories/db_repository.py
-from scripts.config import FORMA_DE_PAGO, SUBFORMA_DE_PAGO
+#from scripts.config import FORMA_DE_PAGO, SUBFORMA_DE_PAGO
 from scripts.services.clean_and_map import clean_invisible, normalize_text_for_map
 from sqlalchemy import create_engine, text
 import os
@@ -34,9 +34,9 @@ def execute_query(query, params=None):
             result = conn.execute(text(query))
         return result
 
-def get_table_columns():
+def get_table_columns(table_name):
     """Obtiene columnas de una tabla"""
-    query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='{DB_CONFIG['database']}' AND TABLE_NAME='{DB_CONFIG['table']}'"
+    query = f"SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='{DB_CONFIG['database']}' AND TABLE_NAME='{table_name}'"
     result = execute_query(query)
     return [r[0] for r in result]
 
@@ -55,14 +55,19 @@ def map_catalogs(df, mapping_configs, verbose=True):
         rel_col = cfg['columna_relacion_catalogo']
         id_col = cfg['columna_id_catalogo']
         alias = cfg['alias_destino']
-        forma_pago = cfg["forma_pago"]
-        subforma_pago = cfg["subforma_pago"]
+        where_clause = cfg.get('where_clause', '')  # ← Obtener filtro
         
         if verbose:
             print(f"\n--- Mapeo: '{col_csv}' -> {table}.{rel_col} (→ {alias})")
+            if where_clause:
+                print(f"   Filtro: {where_clause}")
+        
+        query = f"SELECT {id_col} AS {alias}, {rel_col} FROM {table}"
+        if where_clause:
+            query += f" WHERE {where_clause}"
         
         # Leer catálogo
-        catalog = pd.read_sql(f"SELECT {id_col} AS {alias}, {rel_col} FROM {table} WHERE {forma_pago} = {FORMA_DE_PAGO} AND {subforma_pago} = {SUBFORMA_DE_PAGO}", get_db_connection())
+        catalog = pd.read_sql(query, get_db_connection())
         catalog[rel_col] = catalog[rel_col].astype(str).apply(clean_invisible)
         catalog['__norm'] = catalog[rel_col].apply(normalize_text_for_map)
         
@@ -91,19 +96,19 @@ def map_catalogs(df, mapping_configs, verbose=True):
     return df
 
 
-def get_max_id():
+def get_max_id(table_name):
     """Obtiene máximo ID"""
-    query = f"SELECT MAX(Id) FROM {DB_CONFIG['database']}.{DB_CONFIG['table']}"
+    query = f"SELECT MAX(Id) FROM {DB_CONFIG['database']}.{table_name}"
     result = execute_query(query)
     return result.scalar() or 0
 
-def get_db_sum(column, prev_id, new_id):
+def get_db_sum(column, table_name, prev_id, new_id):
     """Obtiene suma de columna en rango de IDs"""
-    query = f"SELECT SUM(`{column}`) FROM {DB_CONFIG['database']}.{DB_CONFIG['table']} WHERE Id > :prev AND Id <= :new"
+    query = f"SELECT SUM(`{column}`) FROM {DB_CONFIG['database']}.{table_name} WHERE Id > :prev AND Id <= :new"
     result = execute_query(query, {'prev': prev_id or 0, 'new': new_id or 0})
     return result.scalar() or 0
 
-def check_duplicates(df, key_cols):
+def check_duplicates(df, table_name, key_cols):
     """Detecta duplicados en BD"""
     print(f"🔑🔍 Verificando duplicados en BD para columnas: {key_cols}")
     if not key_cols or len(df) == 0:
@@ -124,7 +129,7 @@ def check_duplicates(df, key_cols):
                         params[col] = val
             
             if conditions:
-                q = f"SELECT * FROM {DB_CONFIG['table']} WHERE {' AND '.join(conditions)} LIMIT 1"
+                q = f"SELECT * FROM {table_name} WHERE {' AND '.join(conditions)} LIMIT 1"
                 if conn.execute(text(q), params).fetchone():
                     key = tuple(row[col] if not pd.isna(row[col]) else None for col in key_cols if col in df.columns)
                     existing.add(key)
@@ -137,7 +142,7 @@ def check_duplicates(df, key_cols):
     print(f"📌 Duplicados detectados: {is_dup.sum()}")
     return df[is_dup].copy(), df[~is_dup].copy()
 
-def insert_data(df):
+def insert_data(df, table_name):
     """Inserta datos en BD"""
     if len(df) == 0:
         return 0
@@ -146,7 +151,7 @@ def insert_data(df):
     df = df.where(pd.notna(df), None)
     
     df.to_sql(
-        name=DB_CONFIG['table'],
+        name=table_name,
         con=get_db_connection(),
         if_exists='append',
         index=False,

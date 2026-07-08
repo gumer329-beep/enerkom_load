@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime
 # Importar módulos ETL
 
-from scripts.config import NOT_NULL_COLS, DECIMAL_COLS, DATE_STRICT_COLS, MAPPING_ENABLED, MAPPING_CONFIGS, EXCLUDE_COLS, DUPLICATE_COLS, VALIDATIONS
+#from scripts.config import   #NOT_NULL_COLS, DECIMAL_COLS, DATE_STRICT_COLS, MAPPING_ENABLED, MAPPING_CONFIGS, EXCLUDE_COLS, DUPLICATE_COLS, VALIDATIONS
 from libs.db_repository import map_catalogs, get_table_columns, DB_CONFIG, get_max_id, get_db_sum, check_duplicates, insert_data, save_snapshot
 from scripts.processors.data_processor import clean_column_names, trim_values, filter_valid_rows
 from scripts.services.clean_and_map import normalize_dates, normalize_decimals
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 # ====== PIPELINE ======
-def run_pipeline(df):
+def run_pipeline(df, config, table_name, verbose=True):
     """Ejecuta el pipeline ETL completo"""
     
     verbose = True
@@ -40,6 +40,16 @@ def run_pipeline(df):
     df_insert = None
     prev_max_id = None
     new_max_id = None
+    # Configuración específica de la tabla
+    NOT_NULL_COLS = config["not_null_cols"]
+    DATE_STRICT_COLS = config["date_strict_cols"]
+    DECIMAL_COLS = config["decimal_cols"]
+    DUPLICATE_COLS = config["duplicate_cols"]
+    VALIDATIONS = config["validations"]
+    MAPPING_ENABLED = config.get("mapping_enabled", False)
+    MAPPING_CONFIGS = config.get("mapping_configs", [])
+    EXCLUDE_COLS = config["exclude_cols"]
+    POLICY_FILE = os.path.join(BASE_DIR, f"decimal_{table_name}_policies.json")
     
     try:
         # ====== BLOQUE 0 ======
@@ -89,7 +99,7 @@ def run_pipeline(df):
         if verbose:
             print("\n========================= BLOQUE 3: VALIDACIÓN DDL =========================")
         
-        maria_cols = get_table_columns()
+        maria_cols = get_table_columns(table_name)
         maria_cols_filtered = [c for c in maria_cols if c not in EXCLUDE_COLS]
         csv_cols = [c for c in df_validos.columns if c not in EXCLUDE_COLS]
         extras_csv = [c for c in csv_cols if c not in maria_cols_filtered]
@@ -124,13 +134,13 @@ def run_pipeline(df):
         if verbose:
             print("\n========================= BLOQUE 4: PREPARAR E INSERTAR =========================")
         
-        prev_max_id = get_max_id()
+        prev_max_id = get_max_id(table_name)
         if prev_max_id is not None:
             print(f"🔎 MAX(Id) previo: {prev_max_id}")
         
         print(f"📊 Filas totales a evaluar: {len(df_insert)}")
         df_duplicates, df_insert_new = check_duplicates(
-            df_insert, DUPLICATE_COLS
+            df_insert, table_name, DUPLICATE_COLS
         )
         
         if len(df_duplicates) > 0:
@@ -157,7 +167,7 @@ def run_pipeline(df):
             sys.exit(0)
         
         # Insertar
-        count = insert_data(df_insert)
+        count = insert_data(df_insert, table_name)
         print(f"✅ {count} filas insertadas")
         print("✅ Importación completada correctamente.")
         insert_success = True
@@ -170,7 +180,7 @@ def run_pipeline(df):
             save_snapshot(df_insert, AUDIT_DIR, 'audit_post_insert')
             print(f"📁 Snapshot post-insert guardado")
             
-            new_max_id = get_max_id()
+            new_max_id = get_max_id(table_name)
             if new_max_id is not None:
                 print(f"🔎 MAX(Id) después: {new_max_id}")
                 if prev_max_id is not None:
@@ -186,7 +196,7 @@ def run_pipeline(df):
                 for col in VALIDATIONS.keys():
                     if col in df_insert.columns:
                         csv_sum = pd.to_numeric(df_insert[col], errors='coerce').sum()
-                        db_sum = get_db_sum(col, prev_max_id, new_max_id)
+                        db_sum = get_db_sum(col, table_name, prev_max_id, new_max_id)
                         diff = csv_sum - pd.to_numeric(db_sum, errors='coerce')
                         print(f"🔢 {col}: CSV={csv_sum:.2f} | DB={db_sum:.2f} | Diff={diff:.2f}")
                         if abs(diff) < 1e-6:
