@@ -1,5 +1,5 @@
 # scripts/etl/transform.py
-from scripts.processors.data_processor import filter_valid_rows
+from scripts.processors.data_processor import filter_valid_rows, replace_values
 import pandas as pd
 import re
 import unicodedata
@@ -43,17 +43,17 @@ def clean_invisible(s):
 def parse_date(series):
     """Parsea fechas en múltiples formatos"""
     s = series.astype(str).str.strip().replace({'': pd.NA, 'nan': pd.NA, 'None': pd.NA})
-    parsed = pd.to_datetime(s, errors='coerce', dayfirst=True)
+    parsed = pd.to_datetime(s,format='%Y-%m-%d %H:%M:%S', errors='coerce')
     
     if parsed.isna().any():
         digits = s.str.replace(r'[^0-9]', '', regex=True)
         parsed2 = pd.to_datetime(digits, format='%Y%m%d', errors='coerce')
         parsed = parsed.fillna(parsed2)
-    
     if parsed.isna().any():
-        parsed2 = pd.to_datetime(s, errors='coerce')
+        parsed2 = pd.to_datetime(s,format='%d/%m/%Y %I:%M:%S %p',errors='coerce')
         parsed = parsed.fillna(parsed2)
-    
+    if not parsed.empty:
+      print(f"Formato de Fecha de salida: {parsed.iloc[0]}")
     return parsed.dt.strftime('%Y-%m-%d %H:%M:%S').where(parsed.notna(), pd.NA)
 
 def normalize_number_str(x):
@@ -84,7 +84,6 @@ def normalize_dates(df, date_cols, strict_cols, verbose=True):
     for col in date_cols:
         if col not in df.columns:
             continue
-        
         formatted = parse_date(df[col])
         
         if col in strict_cols:

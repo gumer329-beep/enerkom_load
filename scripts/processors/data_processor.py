@@ -85,3 +85,15 @@ def drop_columns(df, cols_to_drop):
         if col in df.columns:
             df.drop(columns=[col], inplace=True)
     return df
+
+def replace_values(df, col_name, old_values, new_values, verbose=True):
+    """
+    Reemplaza valores en una columna
+    """
+    if col_name in df.columns:
+      if df[col_name].dtype == 'str':  # Solo para columnas de texto
+        df[col_name] = df[col_name].astype(str).str.strip()
+        df[col_name] = df[col_name].str.replace(old_values, new_values)
+      else:
+        df[col_name] = df[col_name].replace(old_values, new_values)
+    return df 

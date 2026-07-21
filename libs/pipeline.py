@@ -55,7 +55,7 @@ def run_pipeline(df, config, table_name, verbose=True):
         # ====== BLOQUE 0 ======
         if verbose:
             print("\n======================== BLOQUE 0: VARIABLES ========================")
-            print(f"📌 Tabla destino: {DB_CONFIG['table']}")
+            print(f"📌 Tabla destino: {table_name}")
             print(f"📌 Columnas NOT NULL: {NOT_NULL_COLS}")
             print(f"📌 Columnas decimales: {DECIMAL_COLS}")
             print(f"📌 Columnas fecha estrictas: {DATE_STRICT_COLS}")
