@@ -218,7 +218,7 @@ TABLES_CONFIG = {
             "FechaReal",
             "Codigo",
         ],
-        "date_strict_cols": ["FechaFact", "FechaTransaccion"],
+        "date_strict_cols": ["FechaReal", "Fechahoraestacion"],
         "exclude_cols": [
             "Id",
             "CrtdDateTime",

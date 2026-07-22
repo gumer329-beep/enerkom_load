@@ -54,6 +54,8 @@ def parse_date(series):
         parsed = parsed.fillna(parsed2)
     if not parsed.empty:
       print(f"Formato de Fecha de salida: {parsed.iloc[0]}")
+    else:
+      print(f"Formato de Fecha de salida: {s}")
     return parsed.dt.strftime('%Y-%m-%d %H:%M:%S').where(parsed.notna(), pd.NA)
 
 def normalize_number_str(x):
@@ -85,7 +87,6 @@ def normalize_dates(df, date_cols, strict_cols, verbose=True):
         if col not in df.columns:
             continue
         formatted = parse_date(df[col])
-        
         if col in strict_cols:
             n_bad = formatted.isna().sum()
             if n_bad > 0:

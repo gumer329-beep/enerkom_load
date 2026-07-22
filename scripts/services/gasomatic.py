@@ -45,7 +45,7 @@ def clean_gasomatic_data():
         errors="coerce",
     )
 
-    # print(df.head(5))
+    #print(df.head(1))
     print(f'cantidad de datos de dataframe: {df["Codigo"].count()}')
     # df3 = df.merge(dfmap, left_on="NoEs", right_on="NOSUC", how="inner")
     # df = df3.drop(
@@ -69,5 +69,5 @@ def clean_gasomatic_data():
     # print(
     #     f'cantidad de datos de dataframe que Tienen Sucursal Mapeada: {df3["Sucursal"].count()}'
     # )
-    #print(df.head(5))
+    print(df["FechaReal"].head(1))
     return df
